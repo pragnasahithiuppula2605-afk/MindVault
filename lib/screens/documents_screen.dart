@@ -10,6 +10,7 @@ import '../widgets/module_card.dart';
 import '../widgets/module_empty_state.dart';
 import '../widgets/module_popup_menu.dart';
 import '../widgets/module_snackbar.dart';
+import '../repositories/recent_repository.dart';
 class DocumentsScreen extends StatefulWidget {
   final bool autoPick;
 
@@ -447,10 +448,15 @@ class _DocumentsScreenState
                         return;
                       }
 
-                      final result =
-                          await OpenFilex.open(
-                        document.path,
-                      );
+                      await RecentRepository().addRecent(
+  itemId: document.id!,
+  type: 'document',
+);
+
+final result =
+    await OpenFilex.open(
+  document.path,
+);
 
                       if (result.type !=
                           ResultType.done) {

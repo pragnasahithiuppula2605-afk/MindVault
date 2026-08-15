@@ -39,7 +39,7 @@ class DatabaseHelper {
 
     return await openDatabase(
   path,
-  version: 11,
+  version: 13,
   onConfigure: (db) async {
     await db.execute('PRAGMA foreign_keys = ON');
   },
@@ -132,6 +132,7 @@ CREATE TABLE links(
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 title TEXT NOT NULL,
 url TEXT NOT NULL,
+lastOpened TEXT,
 isFavorite INTEGER DEFAULT 0,
 isDeleted INTEGER DEFAULT 0,
 deletedAt TEXT
@@ -146,6 +147,7 @@ CREATE TABLE whatsapp_chats(
   title TEXT NOT NULL,
   path TEXT NOT NULL,
   createdAt TEXT NOT NULL,
+  lastOpened TEXT,
   isFavorite INTEGER DEFAULT 0,
   isDeleted INTEGER DEFAULT 0,
   deletedAt TEXT
@@ -202,6 +204,47 @@ if (oldVersion < 11) {
     );
   } catch (_) {}
 }
+if (oldVersion < 12) {
+  try {
+    await db.execute(
+      "ALTER TABLE notes ADD COLUMN lastOpened TEXT",
+    );
+  } catch (_) {}
+
+  try {
+    await db.execute(
+      "ALTER TABLE documents ADD COLUMN lastOpened TEXT",
+    );
+  } catch (_) {}
+
+  try {
+    await db.execute(
+      "ALTER TABLE media ADD COLUMN lastOpened TEXT",
+    );
+  } catch (_) {}
+
+  try {
+    await db.execute(
+      "ALTER TABLE links ADD COLUMN lastOpened TEXT",
+    );
+  } catch (_) {}
+
+  try {
+    await db.execute(
+      "ALTER TABLE whatsapp_chats ADD COLUMN lastOpened TEXT",
+    );
+  } catch (_) {}
+}
+if (oldVersion < 13) {
+  await db.execute('''
+CREATE TABLE recent_items(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  itemId INTEGER NOT NULL,
+  type TEXT NOT NULL,
+  openedAt TEXT NOT NULL
+)
+''');
+}
   }
   Future<void> _createDB(
   Database db,
@@ -214,6 +257,7 @@ CREATE TABLE notes(
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 title TEXT NOT NULL,
 content TEXT NOT NULL,
+lastOpened TEXT,
 isFavorite INTEGER DEFAULT 0,
 isDeleted INTEGER DEFAULT 0,
 deletedAt TEXT
@@ -229,6 +273,7 @@ id INTEGER PRIMARY KEY AUTOINCREMENT,
 name TEXT NOT NULL,
 path TEXT NOT NULL,
 previewPath TEXT,
+lastOpened TEXT,
 isFavorite INTEGER DEFAULT 0,
 isDeleted INTEGER DEFAULT 0,
 deletedAt TEXT
@@ -247,6 +292,7 @@ type TEXT NOT NULL,
 thumbnail TEXT,
 size INTEGER DEFAULT 0,
 duration INTEGER DEFAULT 0,
+lastOpened TEXT,
 isFavorite INTEGER DEFAULT 0,
 isDeleted INTEGER DEFAULT 0,
 deletedAt TEXT
@@ -261,6 +307,7 @@ CREATE TABLE links(
 id INTEGER PRIMARY KEY AUTOINCREMENT,
 title TEXT NOT NULL,
 url TEXT NOT NULL,
+lastOpened TEXT,
 isFavorite INTEGER DEFAULT 0,
 isDeleted INTEGER DEFAULT 0,
 deletedAt TEXT
@@ -275,6 +322,7 @@ CREATE TABLE whatsapp_chats(
   title TEXT NOT NULL,
   path TEXT NOT NULL,
   createdAt TEXT NOT NULL,
+  lastOpened TEXT,
   isFavorite INTEGER DEFAULT 0,
   isDeleted INTEGER DEFAULT 0,
   deletedAt TEXT
@@ -305,6 +353,16 @@ CREATE TABLE whatsapp_messages(
   FOREIGN KEY(chatId)
     REFERENCES whatsapp_chats(id)
     ON DELETE CASCADE
+)
+''');
+// ---------------- Recent History ----------------
+
+await db.execute('''
+CREATE TABLE recent_items(
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  itemId INTEGER NOT NULL,
+  type TEXT NOT NULL,
+  openedAt TEXT NOT NULL
 )
 ''');
 }
@@ -374,6 +432,19 @@ Future<int> updateNote(Note note) async {
     note.toMap(),
     where: 'id = ?',
     whereArgs: [note.id],
+  );
+}
+
+Future<void> updateNoteLastOpened(int id) async {
+  final db = await database;
+
+  await db.update(
+    'notes',
+    {
+      'lastOpened': DateTime.now().toIso8601String(),
+    },
+    where: 'id = ?',
+    whereArgs: [id],
   );
 }
 
@@ -510,6 +581,18 @@ Future<int> updateDocument(
   );
 }
 
+Future<void> updateDocumentLastOpened(int id) async {
+  final db = await database;
+
+  await db.update(
+    'documents',
+    {
+      'lastOpened': DateTime.now().toIso8601String(),
+    },
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
 Future<void> toggleDocumentFavorite(
   int id,
   bool favorite,
@@ -525,7 +608,6 @@ Future<void> toggleDocumentFavorite(
     whereArgs: [id],
   );
 }
-
 Future<void> moveDocumentToTrash(
   int id,
 ) async {
@@ -633,12 +715,23 @@ Future<int> updateMedia(
   MediaItem media,
 ) async {
   final db = await database;
-
   return await db.update(
     'media',
     media.toMap(),
     where: 'id = ?',
     whereArgs: [media.id],
+  );
+}
+Future<void> updateMediaLastOpened(int id) async {
+  final db = await database;
+
+  await db.update(
+    'media',
+    {
+      'lastOpened': DateTime.now().toIso8601String(),
+    },
+    where: 'id = ?',
+    whereArgs: [id],
   );
 }
 
@@ -1068,5 +1161,50 @@ Future<void> deleteDatabaseFile() async {
   await databaseFactory.deleteDatabase(path);
 
   _database = null;
+}
+Future<List<Map<String, dynamic>>> getRecentItems() async {
+  final db = await database;
+
+  return await db.rawQuery('''
+SELECT
+    r.itemId,
+    r.type,
+    r.openedAt,
+
+    n.title AS noteTitle,
+
+    d.name AS documentTitle,
+
+    m.name AS mediaTitle,
+    m.thumbnail AS mediaThumbnail,
+
+    l.title AS linkTitle,
+
+    w.title AS whatsappTitle
+
+FROM recent_items r
+
+LEFT JOIN notes n
+ON r.itemId = n.id
+AND r.type = 'note'
+
+LEFT JOIN documents d
+ON r.itemId = d.id
+AND r.type = 'document'
+
+LEFT JOIN media m
+ON r.itemId = m.id
+AND r.type = 'media'
+
+LEFT JOIN links l
+ON r.itemId = l.id
+AND r.type = 'link'
+
+LEFT JOIN whatsapp_chats w
+ON r.itemId = w.id
+AND r.type = 'whatsapp'
+
+ORDER BY r.openedAt DESC
+''');
 }
 }

@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/whatsapp_chat.dart';
 import '../widgets/module_app_bar.dart';
-import '../widgets/module_card.dart';
-import '../widgets/module_empty_state.dart';
-import '../widgets/module_popup_menu.dart';
+import '../repositories/recent_repository.dart';
 import '../widgets/module_snackbar.dart';
 import '../repositories/whatsapp_repository.dart';
 import '../widgets/whatsapp_message_bubble.dart';
@@ -36,6 +34,12 @@ bool _loading = true;
   @override
 void initState() {
   super.initState();
+
+  RecentRepository().addRecent(
+    itemId: widget.chat.id!,
+    type: 'whatsapp',
+  );
+
   _loadMessages();
 }
 

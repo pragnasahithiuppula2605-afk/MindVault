@@ -36,6 +36,10 @@ class MediaRepository {
     await _database.updateMedia(media);
   }
 
+  Future<void> updateLastOpened(int id) async {
+    await _database.updateMediaLastOpened(id);
+  }
+
   Future<void> renameMedia(
     int id,
     String newName,

@@ -20,6 +20,14 @@ class DocumentRepository {
     await _database.insertDocument(document);
   }
 
+  Future<void> updateDocument(Document document) async {
+    await _database.updateDocument(document);
+  }
+
+  Future<void> updateLastOpened(int id) async {
+    await _database.updateDocumentLastOpened(id);
+  }
+
   Future<void> toggleFavorite(
     int id,
     bool favorite,
@@ -37,15 +45,12 @@ class DocumentRepository {
   Future<void> restore(int id) async {
     await _database.restoreDocument(id);
   }
-Future<void> updateDocument(
-  Document document,
-) async {
-  await _database.updateDocument(document);
-}
+
   Future<void> deleteForever(int id) async {
     await _database.deleteDocument(id);
   }
+
   Future<void> deleteExpiredItems() async {
-  await _database.deleteExpiredRecycleBinItems();
-}
+    await _database.deleteExpiredRecycleBinItems();
+  }
 }

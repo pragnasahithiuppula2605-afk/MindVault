@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import '../repositories/recent_repository.dart';
 import '../models/link_item.dart';
 import '../repositories/link_repository.dart';
 import '../widgets/module_app_bar.dart';
@@ -180,14 +180,14 @@ print("URL = $url");
     return;
   }
 print("ADDING LINK...");
-print("LINK ADDED");
+
   await repository.addLink(
     LinkItem(
       title: title,
       url: url,
     ),
   );
-
+print("LINK ADDED");
   await loadLinks();
 
   if (!mounted) return;
@@ -292,7 +292,10 @@ Future<void> moveToRecycleBin(
 Future<void> openLink(
     LinkItem link) async {
   Uri uri = Uri.parse(link.url);
-
+await RecentRepository().addRecent(
+  itemId: link.id!,
+  type: 'link',
+);
   if (!await launchUrl(
     uri,
     mode: LaunchMode.externalApplication,

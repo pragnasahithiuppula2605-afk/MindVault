@@ -3,6 +3,8 @@ class Note {
   final String title;
   final String content;
 
+  final String? lastOpened;
+
   final bool isFavorite;
 
   final bool isDeleted;
@@ -12,6 +14,7 @@ class Note {
     this.id,
     required this.title,
     required this.content,
+    this.lastOpened,
     this.isFavorite = false,
     this.isDeleted = false,
     this.deletedAt,
@@ -22,6 +25,7 @@ class Note {
       'id': id,
       'title': title,
       'content': content,
+      'lastOpened': lastOpened,
       'isFavorite': isFavorite ? 1 : 0,
       'isDeleted': isDeleted ? 1 : 0,
       'deletedAt': deletedAt,
@@ -33,6 +37,7 @@ class Note {
       id: map['id'],
       title: map['title'],
       content: map['content'],
+      lastOpened: map['lastOpened'],
       isFavorite: map['isFavorite'] == 1,
       isDeleted: map['isDeleted'] == 1,
       deletedAt: map['deletedAt'],
@@ -43,6 +48,7 @@ class Note {
     int? id,
     String? title,
     String? content,
+    String? lastOpened,
     bool? isFavorite,
     bool? isDeleted,
     String? deletedAt,
@@ -51,6 +57,7 @@ class Note {
       id: id ?? this.id,
       title: title ?? this.title,
       content: content ?? this.content,
+      lastOpened: lastOpened ?? this.lastOpened,
       isFavorite: isFavorite ?? this.isFavorite,
       isDeleted: isDeleted ?? this.isDeleted,
       deletedAt: deletedAt ?? this.deletedAt,

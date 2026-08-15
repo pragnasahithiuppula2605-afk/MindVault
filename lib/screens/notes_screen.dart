@@ -7,9 +7,8 @@ import '../widgets/module_snackbar.dart';
 import '../widgets/module_empty_state.dart';
 import '../widgets/module_card.dart';
 import '../widgets/module_popup_menu.dart';
-import '../widgets/confirmation_dialog.dart';
 import '../widgets/module_app_bar.dart';
-
+import '../repositories/recent_repository.dart';
 import 'note_details_screen.dart';
 
 class NotesScreen extends StatefulWidget {
@@ -363,7 +362,10 @@ class _NotesScreenState
 
       return;
     }
-
+await RecentRepository().addRecent(
+  itemId: note.id!,
+  type: 'note',
+);
     final updated = await Navigator.push(
       context,
       MaterialPageRoute(

@@ -24,6 +24,10 @@ class NoteRepository {
     await _database.updateNote(note);
   }
 
+  Future<void> updateLastOpened(int id) async {
+    await _database.updateNoteLastOpened(id);
+  }
+
   Future<void> toggleFavorite(
     int id,
     bool favorite,
@@ -62,12 +66,8 @@ class NoteRepository {
     final search = query.toLowerCase();
 
     return notes.where((note) {
-      return note.title
-              .toLowerCase()
-              .contains(search) ||
-          note.content
-              .toLowerCase()
-              .contains(search);
+      return note.title.toLowerCase().contains(search) ||
+          note.content.toLowerCase().contains(search);
     }).toList();
   }
 

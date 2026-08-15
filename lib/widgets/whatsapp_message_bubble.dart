@@ -3,10 +3,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:photo_view/photo_view.dart';
-
+import 'package:flutter/services.dart';
 import '../models/whatsapp_chat.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:just_audio/just_audio.dart';
+import '../screens/video_player_screen.dart';
+import 'package:get_video_thumbnail/get_video_thumbnail.dart';
+import '../screens/pdf_viewer_screen.dart';
 
-class WhatsappMessageBubble extends StatelessWidget {
+
+class WhatsappMessageBubble extends StatefulWidget {
   final WhatsappMessage message;
   final bool showSender;
 
@@ -16,15 +23,121 @@ class WhatsappMessageBubble extends StatelessWidget {
     this.showSender = true,
   });
 
-  bool get isMe =>
-      message.sender.trim().toLowerCase() == "you";
+  @override
+  State<WhatsappMessageBubble> createState() =>
+      _WhatsappMessageBubbleState();
+}
 
+class _WhatsappMessageBubbleState
+    extends State<WhatsappMessageBubble> {
+final AudioPlayer _player = AudioPlayer();
+@override
+void initState() {
+  super.initState();
+
+  _player.playerStateStream.listen((state) {
+    debugPrint(
+      "PLAYER: ${state.playing} | ${state.processingState}",
+    );
+
+    if (mounted) {
+      setState(() {
+        _playing = state.playing;
+      });
+    }
+
+    if (state.processingState == ProcessingState.completed) {
+      _player.stop();
+    }
+  });
+}
+bool _playing = false;
+Future<void> _playVoice() async {
+  if (widget.message.mediaPath == null) return;
+
+  if (_playing) {
+    await _player.pause();
+
+    if (!mounted) return;
+
+    setState(() {
+      _playing = false;
+    });
+  } else {
+    await _player.setFilePath(widget.message.mediaPath!);
+    await _player.play();
+
+    if (!mounted) return;
+
+    setState(() {
+      _playing = true;
+    });
+  }
+}
+  bool get isMe =>
+  
+      widget.message.sender.trim().toLowerCase() == "you";
+void _showMessageMenu(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    builder: (_) {
+      return SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text("Copy"),
+              onTap: () async {
+                await Clipboard.setData(
+                  ClipboardData(
+                    text: widget.message.message,
+                  ),
+                );
+
+                if (context.mounted) {
+                  Navigator.pop(context);
+
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "Message copied",
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+            ListTile(
+  leading: const Icon(Icons.share),
+  title: const Text("Share"),
+  onTap: () async {
+    Navigator.pop(context);
+
+    await Share.share(
+      widget.message.message,
+    );
+  },
+),
+          ],
+        ),
+      );
+    },
+  );
+}
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: isMe
-          ? Alignment.centerRight
-          : Alignment.centerLeft,
+    return GestureDetector(
+  onLongPress: () {
+  if (widget.message.messageType ==
+      WhatsappMessageType.text) {
+    _showMessageMenu(context);
+  }
+},
+  child: Align(
+    alignment: isMe
+        ? Alignment.centerRight
+        : Alignment.centerLeft,
       child: Container(
         margin: EdgeInsets.only(
   left: isMe ? 70 : 8,
@@ -55,19 +168,20 @@ class WhatsappMessageBubble extends StatelessWidget {
   ),
   boxShadow: [
     BoxShadow(
-      color: Colors.black.withOpacity(0.05),
+      color: Colors.black.withValues(alpha: 0.05),
       blurRadius: 3,
       offset: const Offset(0, 1),
     ),
   ],
 ),
-        child: _buildContent(context),
+              child: _buildContent(context),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildContent(BuildContext context) {
-    switch (message.messageType) {
+    switch (widget.message.messageType) {
       case WhatsappMessageType.text:
         return _textBubble();
 
@@ -93,16 +207,44 @@ class WhatsappMessageBubble extends StatelessWidget {
         return _linkBubble();
 
       case WhatsappMessageType.contact:
-        return _simpleTile(
-          Icons.person,
-          message.message,
-        );
+  return InkWell(
+    onTap: () async {
+      await Clipboard.setData(
+        ClipboardData(
+          text: widget.message.message,
+        ),
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Contact copied"),
+        ),
+      );
+    },
+    child: _simpleTile(
+      Icons.person,
+      widget.message.message,
+    ),
+  );
 
       case WhatsappMessageType.location:
-        return _simpleTile(
-          Icons.location_on,
-          message.message,
-        );
+  return InkWell(
+    onTap: () async {
+      final url =
+          "https://www.google.com/maps/search/?api=1&query=${widget.message.message}";
+
+      await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+    },
+    child: _simpleTile(
+      Icons.location_on,
+      widget.message.message,
+    ),
+  );
 
       case WhatsappMessageType.sticker:
         return _simpleTile(
@@ -114,7 +256,7 @@ class WhatsappMessageBubble extends StatelessWidget {
       default:
         return _simpleTile(
           Icons.help_outline,
-          message.message,
+          widget.message.message,
         );
     }
   }
@@ -123,11 +265,11 @@ class WhatsappMessageBubble extends StatelessWidget {
    return Column(
   crossAxisAlignment: CrossAxisAlignment.start,
   children: [
-    if (!isMe && showSender)
+    if (!isMe && widget.showSender)
       Padding(
         padding: const EdgeInsets.only(bottom: 4),
         child: Text(
-          message.sender,
+          widget.message.sender,
           style: const TextStyle(
             color: Color(0xFF128C7E),
             fontWeight: FontWeight.w600,
@@ -140,7 +282,7 @@ class WhatsappMessageBubble extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            message.message,
+            widget.message.message,
             style: const TextStyle(
               fontSize: 16,
               height: 1.35,
@@ -149,7 +291,7 @@ class WhatsappMessageBubble extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         Text(
-          message.timestamp ?? '',
+          widget.message.timestamp ?? '',
           style: const TextStyle(
             fontSize: 11,
             color: Colors.grey,
@@ -180,8 +322,8 @@ class WhatsappMessageBubble extends StatelessWidget {
     }
   }
     Widget _imageBubble(BuildContext context) {
-  if (message.mediaPath != null &&
-      File(message.mediaPath!).existsSync()) {
+  if (widget.message.mediaPath != null &&
+      File(widget.message.mediaPath!).existsSync()) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -191,11 +333,11 @@ class WhatsappMessageBubble extends StatelessWidget {
               backgroundColor: Colors.black,
               appBar: AppBar(
                 backgroundColor: Colors.black,
-                title: Text(message.fileName ?? "Image"),
+                title: Text(widget.message.fileName ?? "Image"),
               ),
               body: PhotoView(
                 imageProvider: FileImage(
-                  File(message.mediaPath!),
+                  File(widget.message.mediaPath!),
                 ),
               ),
             ),
@@ -207,7 +349,7 @@ class WhatsappMessageBubble extends StatelessWidget {
         child: Stack(
           children: [
             Image.file(
-              File(message.mediaPath!),
+              File(widget.message.mediaPath!),
               width: double.infinity,
               height: 250,
               fit: BoxFit.cover,
@@ -225,7 +367,7 @@ class WhatsappMessageBubble extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  message.timestamp ?? '',
+                  widget.message.timestamp ?? '',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10,
@@ -241,79 +383,131 @@ class WhatsappMessageBubble extends StatelessWidget {
 
   return _simpleTile(
     Icons.image,
-    message.fileName ?? "Image",
+    widget.message.fileName ?? "Image",
   );
 }
+    Widget _videoBubble(BuildContext context) {
+  if (widget.message.thumbnailPath != null &&
+      File(widget.message.thumbnailPath!).existsSync()) {
+    return InkWell(
+      onTap: () {
+  if (widget.message.mediaPath == null) return;
 
-  Widget _videoBubble(BuildContext context) {
-  return InkWell(
-    onTap: () => _openFile(
-      context,
-      message.mediaPath,
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => VideoPlayerScreen(
+        path: widget.message.mediaPath!,
+        title:
+            widget.message.fileName ??
+            "Video",
+      ),
     ),
-    borderRadius: BorderRadius.circular(14),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              if (message.thumbnailPath != null &&
-                  File(message.thumbnailPath!).existsSync())
-                Image.file(
-                  File(message.thumbnailPath!),
-                  height: 220,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                )
-              else
-                Container(
-                  height: 220,
-                  width: double.infinity,
-                  color: Colors.black12,
-                ),
+  );
+},
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Image.file(
+              File(widget.message.thumbnailPath!),
+              width: double.infinity,
+              height: 220,
+              fit: BoxFit.cover,
+            ),
 
-              Container(
-                width: 58,
-                height: 58,
+            Container(
+              width: 65,
+              height: 65,
+              decoration: const BoxDecoration(
+                color: Colors.black45,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.play_arrow,
+                color: Colors.white,
+                size: 40,
+              ),
+            ),
+
+            Positioned(
+              bottom: 8,
+              left: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black54,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.play_arrow,
-                  color: Colors.white,
-                  size: 34,
-                ),
-              ),
-
-              Positioned(
-                bottom: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    message.timestamp ?? '',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                    ),
+                child: Text(
+                  widget.message.fileName ?? "Video",
+                  style: const TextStyle(
+                    color: Colors.white,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
+    );
+  }
+
+  return InkWell(
+    onTap: () {
+  if (widget.message.mediaPath == null) return;
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => VideoPlayerScreen(
+        path: widget.message.mediaPath!,
+        title: widget.message.fileName ?? "Video",
+      ),
+    ),
+  );
+},
+    child: _simpleTile(
+      Icons.videocam,
+      widget.message.fileName ?? "Video",
+    ),
+  );
+}
+  Widget _voiceBubble(BuildContext context) {
+  return InkWell(
+    onTap: _playVoice,
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            child: Icon(
+              _playing
+                  ? Icons.pause
+                  : Icons.play_arrow,
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Text(
+              widget.message.fileName ??
+                  "Voice Message",
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -321,13 +515,32 @@ class WhatsappMessageBubble extends StatelessWidget {
   Widget _pdfBubble(
       BuildContext context) {
     return InkWell(
-      onTap: () => _openFile(
-        context,
-        message.mediaPath,
+     onTap: () {
+  debugPrint("========== PDF ==========");
+  debugPrint("File: ${widget.message.fileName}");
+  debugPrint("Path: ${widget.message.mediaPath}");
+
+  if (widget.message.mediaPath != null) {
+    debugPrint(
+      "Exists: ${File(widget.message.mediaPath!).existsSync()}",
+    );
+  }
+
+  if (widget.message.mediaPath == null) return;
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => PdfViewerScreen(
+        path: widget.message.mediaPath!,
+        title: widget.message.fileName ?? "PDF",
       ),
+    ),
+  );
+},
       child: _simpleTile(
         Icons.picture_as_pdf,
-        message.fileName ?? "PDF",
+        widget.message.fileName ?? "PDF",
       ),
     );
   }
@@ -337,11 +550,11 @@ class WhatsappMessageBubble extends StatelessWidget {
     return InkWell(
       onTap: () => _openFile(
         context,
-        message.mediaPath,
+        widget.message.mediaPath,
       ),
       child: _simpleTile(
         Icons.description,
-        message.fileName ??
+        widget.message.fileName ??
             "Document",
       ),
     );
@@ -352,31 +565,23 @@ class WhatsappMessageBubble extends StatelessWidget {
     return InkWell(
       onTap: () => _openFile(
         context,
-        message.mediaPath,
+        widget.message.mediaPath,
       ),
       child: _simpleTile(
         Icons.audiotrack,
-        message.fileName ?? "Audio",
-      ),
-    );
-  }
-
-  Widget _voiceBubble(
-      BuildContext context) {
-    return InkWell(
-      onTap: () => _openFile(
-        context,
-        message.mediaPath,
-      ),
-      child: _simpleTile(
-        Icons.mic,
-        message.fileName ??
-            "Voice Message",
+        widget.message.fileName ?? "Audio",
       ),
     );
   }
     Widget _linkBubble() {
-  return Container(
+  return InkWell(
+    onTap: () async {
+      await launchUrl(
+        Uri.parse(widget.message.message),
+        mode: LaunchMode.externalApplication,
+      );
+    },
+    child: Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: Colors.blue.shade50,
@@ -395,7 +600,7 @@ class WhatsappMessageBubble extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(
           child: SelectableText(
-            message.message,
+            widget.message.message,
             style: const TextStyle(
               color: Colors.blue,
               fontSize: 15,
@@ -405,6 +610,7 @@ class WhatsappMessageBubble extends StatelessWidget {
         ),
       ],
     ),
+   ), 
   );
 }
 
@@ -415,11 +621,11 @@ class WhatsappMessageBubble extends StatelessWidget {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      if (!isMe && showSender)
+      if (!isMe && widget.showSender)
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Text(
-            message.sender,
+            widget.message.sender,
             style: const TextStyle(
               color: Color(0xFF128C7E),
               fontWeight: FontWeight.w600,
@@ -472,7 +678,7 @@ class WhatsappMessageBubble extends StatelessWidget {
       Align(
         alignment: Alignment.bottomRight,
         child: Text(
-          message.timestamp ?? '',
+          widget.message.timestamp ?? '',
           style: const TextStyle(
             fontSize: 11,
             color: Colors.grey,

@@ -17,6 +17,7 @@ import '../widgets/module_snackbar.dart';
 import 'package:get_video_thumbnail/get_video_thumbnail.dart';
 import 'package:get_video_thumbnail/index.dart';
 import 'package:path_provider/path_provider.dart';
+import '../repositories/recent_repository.dart';
 
 enum SortOption {
   newest,
@@ -580,33 +581,37 @@ print("VIDEO SAVED");
                     isFavorite: item.isFavorite,
 
                     onTap: () async {
-                      if (selectionMode) {
-                        toggleSelection(item);
-                        return;
-                      }
+  if (selectionMode) {
+    toggleSelection(item);
+    return;
+  }
 
-                      if (item.isImage) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => Scaffold(
-                              appBar: AppBar(
-                                title: Text(item.name),
-                              ),
-                              body: PhotoView(
-                                imageProvider:
-                                    FileImage(
-                                  File(item.path),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      } else {
-                        final result =
-                            await OpenFilex.open(
-                          item.path,
-                        );
+  await RecentRepository().addRecent(
+  itemId: item.id!,
+  type: 'media',
+);
+
+if (item.isImage) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(
+            title: Text(item.name),
+          ),
+          body: PhotoView(
+            imageProvider: FileImage(
+              File(item.path),
+            ),
+          ),
+        ),
+      ),
+    );
+  } else {
+    final result =
+        await OpenFilex.open(
+      item.path,
+    );
 
                         if (result.type !=
                             ResultType.done) {

@@ -31,12 +31,16 @@ dependencies:
   pointycastle: ^3.7.4
   provider: ^6.1.5
   get_video_thumbnail: ^0.9.0
+  intl: ^0.20.2
+  just_audio: ^0.10.4
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
+  video_player: ^2.10.0
 
 flutter:
   uses-material-design: true
