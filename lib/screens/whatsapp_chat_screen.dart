@@ -27,45 +27,45 @@ class _WhatsappChatScreenState
       WhatsappRepository();
 
   List<WhatsappMessage> _messages = [];
-List<WhatsappMessage> _filteredMessages = [];
+  List<WhatsappMessage> _filteredMessages = [];
 
-bool _loading = true;
+  bool _loading = true;
 
   @override
-void initState() {
-  super.initState();
+  void initState() {
+    super.initState();
 
-  RecentRepository().addRecent(
-    itemId: widget.chat.id!,
-    type: 'whatsapp',
-  );
+    RecentRepository().addRecent(
+      itemId: widget.chat.id!,
+      type: 'whatsapp',
+    );
 
-  _loadMessages();
-}
-
-void _searchMessages(String query) {
-  if (query.trim().isEmpty) {
-    setState(() {
-      _filteredMessages = _messages;
-    });
-    return;
+    _loadMessages();
   }
 
-  final search = query.toLowerCase();
+  void _searchMessages(String query) {
+    if (query.trim().isEmpty) {
+      setState(() {
+        _filteredMessages = _messages;
+      });
+      return;
+    }
 
-  setState(() {
-    _filteredMessages = _messages.where((message) {
-      return message.message
-              .toLowerCase()
-              .contains(search) ||
-          message.sender
-              .toLowerCase()
-              .contains(search);
-    }).toList();
-  });
-}
+    final search = query.toLowerCase();
 
-Future<void> _loadMessages() async {
+    setState(() {
+      _filteredMessages = _messages.where((message) {
+        return message.message
+                .toLowerCase()
+                .contains(search) ||
+            message.sender
+                .toLowerCase()
+                .contains(search);
+      }).toList();
+    });
+  }
+
+  Future<void> _loadMessages() async {
     final messages = await _repository.getMessages(
       widget.chat.id!,
     );
@@ -74,7 +74,7 @@ Future<void> _loadMessages() async {
 
     setState(() {
       _messages = messages;
-_filteredMessages = messages;
+      _filteredMessages = messages;
       _loading = false;
     });
   }
@@ -82,151 +82,168 @@ _filteredMessages = messages;
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    appBar: ModuleAppBar(
-  title: widget.chat.title,
-  subtitle: '${_filteredMessages.length} messages',
-  totalItems: _filteredMessages.length,
-  selectionMode: false,
-  selectedCount: 0,
-  isSearching: false,
-  searchController: TextEditingController(),
-  onSearch: (_) {},
-  onSearchToggle: () {
-    showSearch(
-      context: context,
-      delegate: _WhatsappMessageSearchDelegate(
-        messages: _messages,
+      appBar: ModuleAppBar(
+        title: widget.chat.title,
+        subtitle: '${_filteredMessages.length} messages',
+        totalItems: _filteredMessages.length,
+        selectionMode: false,
+        selectedCount: 0,
+        isSearching: false,
+        searchController: TextEditingController(),
+        onSearch: (_) {},
+        onSearchToggle: () {
+          showSearch(
+            context: context,
+            delegate: _WhatsappMessageSearchDelegate(
+              messages: _messages,
+            ),
+          );
+        },
+        onSelectAll: () {},
+        onFavorite: () async {
+          final updatedChat = widget.chat.copyWith(
+            isFavorite: !widget.chat.isFavorite,
+          );
+
+          await _repository.toggleFavorite(
+            updatedChat.id!,
+            updatedChat.isFavorite,
+          );
+
+          if (!mounted) return;
+
+          ModuleSnackBar.show(
+            context,
+            updatedChat.isFavorite
+                ? 'Added to Favorites'
+                : 'Removed from Favorites',
+          );
+
+          Navigator.pop(context, true);
+        },
+        onDelete: () async {
+          await _repository.moveToTrash(
+            widget.chat.id!,
+          );
+
+          if (!mounted) return;
+
+          ModuleSnackBar.show(
+            context,
+            'Moved to Recycle Bin',
+          );
+
+          Navigator.pop(context, true);
+        },
+        onCloseSelection: () {},
+        onSort: (_) {},
+      ),
+      body: Container(
+        color: const Color(0xFFECE5DD),
+        child: _loading
+            ? const Center(
+                child: CircularProgressIndicator(),
+              )
+            : _filteredMessages.isEmpty
+                ? const Center(
+                    child: Text(
+                      "No Messages",
+                    ),
+                  )
+                : ListView.builder(
+                    // Extra space below the final message
+                    // so it is easier to tap and doesn't sit
+                    // against the phone's bottom navigation area.
+                    padding: const EdgeInsets.only(
+                      left: 10,
+                      right: 10,
+                      top: 12,
+                      bottom: 100,
+                    ),
+                    itemCount: _filteredMessages.length,
+                    itemBuilder: (
+                      context,
+                      index,
+                    ) {
+                      final message =
+                          _filteredMessages[index];
+
+                      DateTime? currentDate;
+
+                      try {
+                        currentDate = DateTime.parse(
+                          message.timestamp ?? '',
+                        );
+                      } catch (_) {
+                        currentDate = null;
+                      }
+
+                      bool showDate = false;
+
+                      if (currentDate != null) {
+                        if (index == 0) {
+                          showDate = true;
+                        } else {
+                          DateTime? previousDate;
+
+                          try {
+                            previousDate = DateTime.parse(
+                              _filteredMessages[index - 1]
+                                      .timestamp ??
+                                  '',
+                            );
+                          } catch (_) {}
+
+                          if (previousDate == null ||
+                              previousDate.year !=
+                                  currentDate.year ||
+                              previousDate.month !=
+                                  currentDate.month ||
+                              previousDate.day !=
+                                  currentDate.day) {
+                            showDate = true;
+                          }
+                        }
+                      }
+
+                      final bool senderChanged =
+                          index == 0 ||
+                              _filteredMessages[index - 1]
+                                      .sender !=
+                                  message.sender;
+
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          bottom: senderChanged ? 10 : 2,
+                        ),
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.stretch,
+                          children: [
+                            if (showDate)
+                              Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: DateSeparator(
+                                  date: currentDate!,
+                                ),
+                              ),
+                            WhatsappMessageBubble(
+                              message: message,
+                              showSender: senderChanged,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
       ),
     );
-  },
-  onSelectAll: () {},
-  onFavorite: () async {
-    final updatedChat = widget.chat.copyWith(
-      isFavorite: !widget.chat.isFavorite,
-    );
-
-    await _repository.toggleFavorite(
-  updatedChat.id!,
-  updatedChat.isFavorite,
-);
-
-    if (!mounted) return;
-
-    ModuleSnackBar.show(
-      context,
-      updatedChat.isFavorite
-          ? 'Added to Favorites'
-          : 'Removed from Favorites',
-    );
-
-    Navigator.pop(context, true);
-  },
-  onDelete: () async {
-    await _repository.moveToTrash(
-  widget.chat.id!,
-);
-
-    if (!mounted) return;
-
-    ModuleSnackBar.show(
-      context,
-      'Moved to Recycle Bin',
-    );
-
-    Navigator.pop(context, true);
-  },
-  onCloseSelection: () {},
-  onSort: (_) {},
-),
-      body: Container(
-  color: const Color(0xFFECE5DD),
-  child: _loading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
-          : _filteredMessages.isEmpty
-              ? const Center(
-                  child: Text(
-                    "No Messages",
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-  horizontal: 10,
-  vertical: 12,
-),
-                  itemCount: _filteredMessages.length,
-                  itemBuilder: (
-                    context,
-                    index,
-                  ) {
-                    final message = _filteredMessages[index];
-
-DateTime? currentDate;
-
-try {
-  currentDate = DateTime.parse(message.timestamp ?? '');
-} catch (_) {
-  currentDate = null;
-}
-
-bool showDate = false;
-
-if (currentDate != null) {
-  if (index == 0) {
-    showDate = true;
-  } else {
-    DateTime? previousDate;
-
-    try {
-      previousDate = DateTime.parse(
-        _filteredMessages[index - 1].timestamp ?? '',
-      );
-    } catch (_) {}
-
-    if (previousDate == null ||
-        previousDate.year != currentDate.year ||
-        previousDate.month != currentDate.month ||
-        previousDate.day != currentDate.day) {
-      showDate = true;
-    }
   }
 }
 
-final bool senderChanged = index == 0 ||
-    _filteredMessages[index - 1].sender !=
-        message.sender;
-
-return Padding(
-  padding: EdgeInsets.only(
-    bottom: senderChanged ? 10 : 2,
-  ),
-  child: Column(
-  crossAxisAlignment:
-      CrossAxisAlignment.stretch,
-  children: [
-    if (showDate)
-  Padding(
-    padding: const EdgeInsets.symmetric(
-      vertical: 12,
-    ),
-    child: DateSeparator(
-      date: currentDate!,
-    ),
-  ),
-    WhatsappMessageBubble(
-  message: message,
-  showSender: senderChanged,
-),
-  ],
-),
-);
-                  },
-                ),
-                ),
-    );
-  }
-}
 class _WhatsappMessageSearchDelegate
     extends SearchDelegate {
   final List<WhatsappMessage> messages;
@@ -236,7 +253,9 @@ class _WhatsappMessageSearchDelegate
   });
 
   @override
-  List<Widget>? buildActions(BuildContext context) {
+  List<Widget>? buildActions(
+    BuildContext context,
+  ) {
     return [
       IconButton(
         icon: const Icon(Icons.clear),
@@ -248,7 +267,9 @@ class _WhatsappMessageSearchDelegate
   }
 
   @override
-  Widget? buildLeading(BuildContext context) {
+  Widget? buildLeading(
+    BuildContext context,
+  ) {
     return IconButton(
       icon: const Icon(Icons.arrow_back),
       onPressed: () => close(context, null),
@@ -256,12 +277,16 @@ class _WhatsappMessageSearchDelegate
   }
 
   @override
-  Widget buildResults(BuildContext context) {
+  Widget buildResults(
+    BuildContext context,
+  ) {
     return _buildList();
   }
 
   @override
-  Widget buildSuggestions(BuildContext context) {
+  Widget buildSuggestions(
+    BuildContext context,
+  ) {
     return _buildList();
   }
 
